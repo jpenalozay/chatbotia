@@ -1,0 +1,1394 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chatbot RAG Demo</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-primary: #0f1419;
+            --bg-secondary: #1a1f2e;
+            --bg-tertiary: #252d3d;
+            --bg-hover: #2d3548;
+            --text-primary: #e4e6eb;
+            --text-secondary: #8b92a8;
+            --accent-primary: #3b82f6;
+            --accent-secondary: #6366f1;
+            --accent-success: #10b981;
+            --accent-warning: #f59e0b;
+            --border-color: #2d3548;
+            --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .container {
+            display: grid;
+            grid-template-columns: 320px 1fr 350px;
+            grid-template-rows: 70px 1fr 220px;
+            height: 100vh;
+            gap: 1px;
+            background: var(--border-color);
+        }
+
+        .header {
+            grid-column: 1 / -1;
+            background: var(--bg-secondary);
+            padding: 0 30px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .header h1 {
+            color: var(--text-primary);
+            font-size: 22px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .header .logo {
+            width: 36px;
+            height: 36px;
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+        }
+
+        .header .badge {
+            background: rgba(59, 130, 246, 0.15);
+            color: var(--accent-primary);
+            padding: 6px 14px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            border: 1px solid rgba(59, 130, 246, 0.3);
+        }
+
+        .panel {
+            background: var(--bg-secondary);
+            overflow-y: auto;
+            scrollbar-width: thin;
+            scrollbar-color: var(--bg-tertiary) var(--bg-secondary);
+        }
+
+        .panel::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .panel::-webkit-scrollbar-track {
+            background: var(--bg-secondary);
+        }
+
+        .panel::-webkit-scrollbar-thumb {
+            background: var(--bg-tertiary);
+            border-radius: 4px;
+        }
+
+        .panel::-webkit-scrollbar-thumb:hover {
+            background: var(--bg-hover);
+        }
+
+        .panel-header {
+            padding: 20px;
+            border-bottom: 1px solid var(--border-color);
+            position: sticky;
+            top: 0;
+            background: var(--bg-secondary);
+            z-index: 10;
+        }
+
+        .panel-header h2 {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .panel-content {
+            padding: 15px;
+        }
+
+        /* Conversaciones */
+        .conv-item {
+            padding: 14px;
+            margin-bottom: 8px;
+            background: var(--bg-tertiary);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: 1px solid transparent;
+        }
+
+        .conv-item:hover {
+            background: var(--bg-hover);
+            border-color: var(--accent-primary);
+            transform: translateX(4px);
+        }
+
+        .conv-item.active {
+            background: var(--bg-hover);
+            border-color: var(--accent-primary);
+        }
+
+        .conv-name {
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 4px;
+        }
+
+        .conv-phone {
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        /* Chat */
+        .chat-area {
+            background: var(--bg-primary);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+        }
+
+        .message {
+            margin-bottom: 16px;
+            display: flex;
+            align-items: flex-start;
+            animation: fadeIn 0.3s;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .message.user {
+            justify-content: flex-end;
+        }
+
+        .message-content {
+            max-width: 70%;
+            padding: 12px 16px;
+            border-radius: 12px;
+            word-wrap: break-word;
+            line-height: 1.5;
+        }
+
+        .message.user .message-content {
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+            color: white;
+            border-bottom-right-radius: 4px;
+        }
+
+        .message.assistant .message-content {
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            border-bottom-left-radius: 4px;
+            border: 1px solid var(--border-color);
+        }
+
+        .message-time {
+            font-size: 11px;
+            color: var(--text-secondary);
+            margin-top: 6px;
+            opacity: 0.7;
+        }
+
+        /* Chat */
+        .chat-area {
+            background: var(--bg-primary);
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            /* Altura completa de la ventana */
+            position: relative;
+        }
+
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            overflow-x: hidden;
+            padding: 20px;
+            padding-bottom: 180px;
+            /* Espacio para input (70px) + simulador (110px) */
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            scroll-behavior: smooth;
+        }
+
+        .chat-messages::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .chat-messages::-webkit-scrollbar-track {
+            background: var(--bg-primary);
+        }
+
+        .chat-messages::-webkit-scrollbar-thumb {
+            background: var(--border-color);
+            border-radius: 4px;
+        }
+
+        .chat-messages::-webkit-scrollbar-thumb:hover {
+            background: var(--text-secondary);
+        }
+
+        .chat-input-area {
+            position: fixed;
+            bottom: 110px;
+            /* Encima del simulador */
+            left: 300px;
+            right: 350px;
+            padding: 10px 20px;
+            background: var(--bg-secondary);
+            border-top: 1px solid var(--border-color);
+            border-bottom: 1px solid var(--border-color);
+            z-index: 99;
+        }
+
+        .chat-input {
+            display: flex;
+            gap: 12px;
+        }
+
+        .chat-input input {
+            flex: 1;
+            padding: 12px 16px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-size: 14px;
+            font-family: inherit;
+        }
+
+        .chat-input input:focus {
+            outline: none;
+            border-color: var(--accent-primary);
+        }
+
+        .chat-input input:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .chat-input input::placeholder {
+            color: var(--text-secondary);
+        }
+
+        .btn {
+            padding: 14px 24px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 14px;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow);
+        }
+
+        .btn-success {
+            background: var(--accent-success);
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #059669;
+            transform: translateY(-2px);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-delete {
+            background: transparent;
+            border: 1px solid #ef4444;
+            color: #ef4444;
+            padding: 6px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: all 0.2s;
+            margin-left: auto;
+        }
+
+        .btn-delete:hover {
+            background: #ef4444;
+            color: white;
+            transform: scale(1.1);
+        }
+
+        .doc-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px;
+            background: var(--bg-tertiary);
+            border-radius: 8px;
+            margin-bottom: 8px;
+        }
+
+        .doc-name {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+
+        .doc-info {
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        /* Documentos */
+        .upload-area {
+            border: 2px dashed var(--border-color);
+            border-radius: 12px;
+            padding: 30px 20px;
+            text-align: center;
+            margin-bottom: 20px;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: var(--bg-tertiary);
+        }
+
+        .upload-area:hover {
+            border-color: var(--accent-primary);
+            background: var(--bg-hover);
+        }
+
+        .upload-icon {
+            font-size: 36px;
+            margin-bottom: 12px;
+        }
+
+        .upload-text {
+            color: var(--text-primary);
+            font-weight: 600;
+            margin-bottom: 6px;
+        }
+
+        .upload-hint {
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        .doc-item {
+            padding: 12px;
+            background: var(--bg-tertiary);
+            border-radius: 8px;
+            margin-bottom: 10px;
+            border: 1px solid var(--border-color);
+            transition: all 0.2s;
+        }
+
+        .doc-item:hover {
+            border-color: var(--accent-primary);
+            background: var(--bg-hover);
+        }
+
+        .doc-name {
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 6px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .doc-info {
+            color: var(--text-secondary);
+            font-size: 11px;
+        }
+
+        /* Simulador */
+        .simulator {
+            position: fixed;
+            bottom: 0;
+            left: 300px;
+            right: 350px;
+            background: var(--bg-secondary);
+            padding: 12px 20px;
+            border-top: 1px solid var(--border-color);
+            z-index: 100;
+            height: 110px;
+            /* Altura fija */
+        }
+
+        .simulator h2 {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .simulator-grid {
+            display: grid;
+            grid-template-columns: 200px 1fr auto;
+            gap: 12px;
+            align-items: start;
+        }
+
+        .simulator-grid input,
+        .simulator-grid textarea {
+            padding: 10px 14px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-size: 14px;
+            font-family: inherit;
+        }
+
+        .simulator-grid input:focus,
+        .simulator-grid textarea:focus {
+            outline: none;
+            border-color: var(--accent-primary);
+            background: var(--bg-primary);
+        }
+
+        .simulator-grid textarea {
+            resize: vertical;
+            min-height: 60px;
+            max-height: 120px;
+            padding-right: 55px;
+            /* Más espacio para el botón de micrófono */
+            width: 100%;
+        }
+
+        /* Botón de Micrófono */
+        .mic-button {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            border: 2px solid var(--border-color);
+            background: var(--accent-primary);
+            color: white;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            transition: all 0.3s;
+            z-index: 10;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+        }
+
+        .mic-button:hover {
+            background: var(--accent-secondary);
+            transform: translateY(-50%) scale(1.1);
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+        }
+
+        .mic-button.recording {
+            background: #ef4444;
+            border-color: #dc2626;
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1;
+                box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+            }
+
+            50% {
+                opacity: 0.9;
+                box-shadow: 0 0 0 10px rgba(239, 68, 68, 0);
+            }
+        }
+
+        .simulator-grid input::placeholder,
+        .simulator-grid textarea::placeholder {
+            color: var(--text-secondary);
+        }
+
+        .config-section {
+            background: var(--bg-tertiary);
+            border-radius: 8px;
+            padding: 15px;
+            border: 1px solid var(--border-color);
+        }
+
+        .config-label {
+            font-size: 11px;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+
+        .config-input {
+            width: 100%;
+            padding: 10px 12px;
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            color: var(--text-primary);
+            font-size: 13px;
+            font-family: 'Courier New', monospace;
+        }
+
+        .config-input:focus {
+            outline: none;
+            border-color: var(--accent-primary);
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--text-secondary);
+        }
+
+        .empty-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+            opacity: 0.5;
+        }
+
+        .empty-text {
+            font-size: 14px;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+            color: var(--accent-primary);
+        }
+
+        .loading.active {
+            display: block;
+        }
+
+        .spinner {
+            border: 3px solid var(--bg-tertiary);
+            border-top: 3px solid var(--accent-primary);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 12px;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* Controles de Modo */
+        .mode-controls {
+            background: var(--bg-secondary);
+            padding: 12px 20px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .mode-label {
+            font-size: 12px;
+            color: var(--text-secondary);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .mode-buttons {
+            display: flex;
+            gap: 8px;
+        }
+
+        .mode-btn {
+            padding: 8px 16px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            color: var(--text-primary);
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .mode-btn:hover {
+            background: var(--bg-hover);
+            border-color: var(--accent-primary);
+            transform: translateY(-1px);
+        }
+
+        .mode-btn.active {
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+            border-color: var(--accent-primary);
+            color: white;
+        }
+
+        .mode-btn span {
+            font-size: 14px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <h1>
+                <div class="logo">🤖</div>
+                Chatbot RAG Demo
+            </h1>
+            <span class="badge">Modo Demostración</span>
+        </div>
+
+        <!-- Conversaciones -->
+        <div class="panel">
+            <div class="panel-header">
+                <h2>💬 Conversaciones</h2>
+            </div>
+            <div class="panel-content" id="conversations-list">
+                <div class="empty-state">
+                    <div class="empty-icon">📭</div>
+                    <div class="empty-text">No hay conversaciones aún</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Chat -->
+        <div class="chat-area">
+            <!-- Controles de Modo -->
+            <div class="mode-controls" id="mode-controls" style="display: none;">
+                <div class="mode-label">Modo de Conversación:</div>
+                <div class="mode-buttons">
+                    <button class="mode-btn" data-mode="auto" onclick="setConversationMode('auto')"
+                        title="Modo Automático - El bot responde automáticamente">
+                        <span>▶️</span> Auto
+                    </button>
+                    <button class="mode-btn" data-mode="manual" onclick="setConversationMode('manual')"
+                        title="Modo Manual - Solo respuestas del asesor">
+                        <span>⏸️</span> Manual
+                    </button>
+                    <button class="mode-btn" data-mode="review" onclick="setConversationMode('review')"
+                        title="Modo Revisión - El bot sugiere, el asesor aprueba">
+                        <span>⏯️</span> Revisión
+                    </button>
+                </div>
+            </div>
+
+            <div id="chat-messages" class="chat-messages">
+                <div class="empty-state">
+                    <div class="empty-icon">💭</div>
+                    <div class="empty-text">Selecciona una conversación o simula un mensaje nuevo</div>
+                </div>
+            </div>
+            <div class="chat-input-area">
+                <div class="chat-input">
+                    <input type="text" id="response-input" placeholder="Escribe tu respuesta..." disabled>
+                    <button class="btn btn-primary" id="send-response" disabled>
+                        <span>📤</span> Enviar
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Documentos -->
+        <div class="panel">
+            <div class="panel-header">
+                <h2>📚 Documentos RAG</h2>
+            </div>
+            <div class="panel-content">
+                <div class="upload-area" onclick="document.getElementById('file-upload').click()">
+                    <div class="upload-icon">📤</div>
+                    <div class="upload-text">Click para subir documento</div>
+                    <div class="upload-hint">PDF, DOCX, XLSX, TXT, MD</div>
+                    <input type="file" id="file-upload" style="display: none" accept=".pdf,.docx,.xlsx,.txt,.md">
+                </div>
+                <div id="documents-list"></div>
+
+                <!-- Configuración de Prompt del Sistema -->
+                <div class="config-section" style="margin-top: 20px;">
+                    <div class="config-label">⚙️ Prompt del Sistema</div>
+                    <textarea class="config-input" id="system-prompt" rows="5"
+                        placeholder="Eres un asistente útil...">Eres un asistente útil que responde preguntas basándote en los documentos proporcionados. Sé conciso y preciso.</textarea>
+                    <button class="btn btn-primary" onclick="saveSystemPrompt()" style="margin-top: 10px; width: 100%;">
+                        <span>💾</span> Guardar Prompt
+                    </button>
+                </div>
+
+                <!-- Fine-Tuning -->
+                <div class="config-section" style="margin-top: 20px;">
+                    <div class="config-label">🎯 Fine-Tuning del Modelo</div>
+                    <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 12px; line-height: 1.5;">
+                        Entrena el modelo con conversaciones reales para mejorar sus respuestas específicas a tu
+                        negocio.
+                        <a href="file:///C:/Users/jlpy/.gemini/antigravity/brain/bd1c6bbf-3b23-42ec-ba6d-93381f2f6909/guia_finetuning.md"
+                            target="_blank"
+                            style="color: var(--accent-primary); text-decoration: none; margin-left: 5px;">
+                            📚 Ver guía completa
+                        </a>
+                    </div>
+                    <div style="display: flex; flex-direction: column; gap: 10px;">
+                        <button class="btn btn-success" onclick="exportTrainingData()" style="width: 100%;">
+                            <span>📤</span> Exportar Datos de Entrenamiento
+                        </button>
+                        <button class="btn btn-secondary" onclick="startFineTuning()" style="width: 100%;" disabled>
+                            <span>🚀</span> Iniciar Fine-Tuning
+                        </button>
+                    </div>
+                    <div id="finetuning-status"
+                        style="margin-top: 10px; font-size: 11px; color: var(--text-secondary);"></div>
+                </div>
+
+                <!-- Comparador de Precios -->
+                <div class="config-section" style="margin-top: 20px;">
+                    <div class="config-label">🔍 Comparador de Precios</div>
+                    <div style="display: flex; flex-direction: column; gap: 10px;">
+                        <input type="text" class="config-input" id="price-brand"
+                            placeholder="Marca (ej: HP, Dell, ASUS)">
+                        <input type="text" class="config-input" id="price-model"
+                            placeholder="Modelo (ej: EliteBook 840 G10)">
+                        <button class="btn btn-primary" onclick="searchPrices()" style="width: 100%;">
+                            <span>🔎</span> Buscar Precios
+                        </button>
+                    </div>
+                    <div id="price-results" style="margin-top: 15px; max-height: 300px; overflow-y: auto;"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Simulador -->
+        <div class="simulator">
+            <h2>🎮 Simulador de Mensajes</h2>
+            <div class="simulator-grid">
+                <input type="text" id="sim-phone" placeholder="+51999999999" value="+51999999999">
+                <div style="position: relative;">
+                    <textarea id="sim-message" placeholder="Escribe el mensaje del cliente..."></textarea>
+                    <button id="mic-btn" class="mic-button" onclick="toggleVoiceRecording()"
+                        title="Grabar mensaje de voz">
+                        <span id="mic-icon">🎤</span>
+                    </button>
+                </div>
+                <button class="btn btn-success" onclick="sendSimulatedMessage()">
+                    <span>🚀</span> Enviar Simulado
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentConversationId = null;
+
+        // Cargar conversaciones
+        async function loadConversations() {
+            try {
+                const response = await fetch('/api/conversations');
+                const data = await response.json();
+
+                const list = document.getElementById('conversations-list');
+                if (data.length === 0) {
+                    list.innerHTML = '<div class="empty-state"><div class="empty-icon">📭</div><div class="empty-text">No hay conversaciones aún</div></div>';
+                    return;
+                }
+
+                list.innerHTML = data.map(conv => `
+                    <div class="conv-item" onclick="loadConversation(${conv.id})">
+                        <div class="conv-name">${conv.client_name || 'Cliente'}</div>
+                        <div class="conv-phone">${conv.phone || 'Sin número'}</div>
+                    </div>
+                `).join('');
+            } catch (error) {
+                console.error('Error loading conversations:', error);
+            }
+        }
+
+        // Cargar conversación
+        async function loadConversation(convId) {
+            try {
+                currentConversationId = convId;
+
+                // Obtener datos de la conversación
+                const convResponse = await fetch(`/api/conversation/${convId}`);
+                const convData = await convResponse.json();
+
+                // Obtener mensajes
+                const response = await fetch(`/api/messages/${convId}`);
+                const messages = await response.json();
+
+                const chatMessages = document.getElementById('chat-messages');
+                if (messages.length === 0) {
+                    chatMessages.innerHTML = '<div class="empty-state"><div class="empty-icon">💭</div><div class="empty-text">No hay mensajes en esta conversación</div></div>';
+                } else {
+                    chatMessages.innerHTML = messages.map(msg => `
+                        <div class="message ${msg.role}">
+                            <div class="message-content">
+                                ${msg.content}
+                                <div class="message-time">${new Date(msg.created_at).toLocaleString()}</div>
+                            </div>
+                        </div>
+                    `).join('');
+                }
+
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+
+                // Mostrar controles de modo
+                const modeControls = document.getElementById('mode-controls');
+                modeControls.style.display = 'flex';
+
+                // Actualizar botones de modo
+                const currentMode = convData.mode || 'auto';
+                document.querySelectorAll('.mode-btn').forEach(btn => {
+                    btn.classList.remove('active');
+                    if (btn.dataset.mode === currentMode) {
+                        btn.classList.add('active');
+                    }
+                });
+
+                // Activar input
+                document.getElementById('response-input').disabled = false;
+                document.getElementById('send-response').disabled = false;
+
+                // Marcar conversación activa
+                document.querySelectorAll('.conv-item').forEach(item => item.classList.remove('active'));
+                event.target.closest('.conv-item').classList.add('active');
+            } catch (error) {
+                console.error('Error loading conversation:', error);
+            }
+        }
+
+        // Cambiar modo de conversación
+        async function setConversationMode(mode) {
+            if (!currentConversationId) return;
+
+            try {
+                const response = await fetch(`/api/conversation/${currentConversationId}/mode`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ mode: mode })
+                });
+
+                if (response.ok) {
+                    // Actualizar botones
+                    document.querySelectorAll('.mode-btn').forEach(btn => {
+                        btn.classList.remove('active');
+                        if (btn.dataset.mode === mode) {
+                            btn.classList.add('active');
+                        }
+                    });
+
+                    console.log(`✅ Modo cambiado a: ${mode}`);
+                } else {
+                    alert('❌ Error al cambiar modo');
+                }
+            } catch (error) {
+                console.error('Error setting mode:', error);
+                alert('❌ Error al cambiar modo');
+            }
+        }
+
+        // Cargar documentos
+        async function loadDocuments() {
+            try {
+                const response = await fetch('/api/rag/documents');
+                const data = await response.json();
+
+                const list = document.getElementById('documents-list');
+                if (data.documents.length === 0) {
+                    list.innerHTML = '<div class="empty-state" style="padding: 20px;"><div class="empty-text">No hay documentos</div></div>';
+                    return;
+                }
+
+                list.innerHTML = data.documents.map(doc => `
+                    <div class="doc-item">
+                        <div class="doc-name">
+                            <span>📄</span>
+                            ${doc.filename}
+                        </div>
+                        <div class="doc-info">
+                            ${doc.file_type.toUpperCase()} • ${(doc.file_size / 1024).toFixed(1)} KB • 
+                            ${doc.chunk_count} chunks
+                        </div>
+                        <button class="btn-delete" onclick="deleteDocument(${doc.id}, '${doc.filename}')" title="Eliminar documento">
+                            🗑️
+                        </button>
+                    </div>
+                `).join('');
+            } catch (error) {
+                console.error('Error loading documents:', error);
+            }
+        }
+
+        // Subir documento
+        document.getElementById('file-upload').addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const response = await fetch('/api/rag/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (response.ok) {
+                    alert('✅ Documento procesado exitosamente');
+                    loadDocuments();
+                } else {
+                    alert('❌ Error al procesar documento');
+                }
+            } catch (error) {
+                console.error('Error uploading document:', error);
+                alert('❌ Error al subir documento');
+            }
+
+            e.target.value = '';
+        });
+
+        // Enviar mensaje simulado
+        async function sendSimulatedMessage() {
+            const phone = document.getElementById('sim-phone').value;
+            const message = document.getElementById('sim-message').value;
+            const systemPrompt = document.getElementById('system-prompt').value;
+
+            if (!phone || !message) {
+                alert('Por favor ingresa número y mensaje');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/simulate-message', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        phone_number: phone,
+                        message: message,
+                        system_prompt: systemPrompt
+                    })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    // Limpiar campo de mensaje
+                    document.getElementById('sim-message').value = '';
+                    loadConversations();
+                    if (data.conversation_id) {
+                        setTimeout(() => loadConversation(data.conversation_id), 500);
+                    }
+                } else {
+                    alert('❌ Error: ' + (data.detail || 'Error desconocido'));
+                }
+            } catch (error) {
+                console.error('Error sending simulated message:', error);
+                alert('❌ Error al enviar mensaje');
+            }
+        }
+
+        // Enviar respuesta
+        document.getElementById('send-response').addEventListener('click', async () => {
+            const input = document.getElementById('response-input');
+            const message = input.value.trim();
+
+            if (!message || !currentConversationId) return;
+
+            try {
+                const response = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        conversation_id: currentConversationId,
+                        message: message
+                    })
+                });
+
+                if (response.ok) {
+                    input.value = '';
+                    loadConversation(currentConversationId);
+                } else {
+                    alert('❌ Error al enviar mensaje');
+                }
+            } catch (error) {
+                console.error('Error sending message:', error);
+                alert('❌ Error al enviar mensaje');
+            }
+        });
+
+        // Enter para enviar
+        document.getElementById('response-input').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                document.getElementById('send-response').click();
+            }
+        });
+
+        document.getElementById('sim-message').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendSimulatedMessage();
+            }
+        });
+
+        // Eliminar documento
+        async function deleteDocument(docId, filename) {
+            if (!confirm(`¿Estás seguro de eliminar "${filename}"?`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/rag/document/${docId}`, {
+                    method: 'DELETE'
+                });
+
+                if (response.ok) {
+                    alert('✅ Documento eliminado');
+                    loadDocuments();
+                } else {
+                    const data = await response.json();
+                    alert('❌ Error: ' + (data.detail || 'Error desconocido'));
+                }
+            } catch (error) {
+                console.error('Error deleting document:', error);
+                alert('❌ Error al eliminar documento');
+            }
+        }
+
+        // Guardar prompt del sistema
+        function saveSystemPrompt() {
+            const prompt = document.getElementById('system-prompt').value;
+
+            if (!prompt.trim()) {
+                alert('⚠️ El prompt no puede estar vacío');
+                return;
+            }
+
+            // Guardar en localStorage
+            localStorage.setItem('system_prompt', prompt);
+            alert('✅ Prompt guardado correctamente');
+        }
+
+        // Cargar prompt guardado al iniciar
+        function loadSavedPrompt() {
+            const savedPrompt = localStorage.getItem('system_prompt');
+            if (savedPrompt) {
+                document.getElementById('system-prompt').value = savedPrompt;
+            }
+        }
+
+        // Buscar precios (Web Scraping)
+        async function searchPrices() {
+            const brand = document.getElementById('price-brand').value.trim();
+            const model = document.getElementById('price-model').value.trim();
+            const resultsDiv = document.getElementById('price-results');
+
+            if (!brand || !model) {
+                alert('⚠️ Por favor ingresa marca y modelo');
+                return;
+            }
+
+            // Mostrar loading
+            resultsDiv.innerHTML = `
+                <div style="text-align: center; padding: 20px; color: var(--text-secondary);">
+                    <div style="font-size: 24px; margin-bottom: 10px;">🔍</div>
+                    <div>Buscando precios en tiendas online...</div>
+                    <div style="font-size: 12px; margin-top: 5px;">Esto puede tomar unos segundos</div>
+                </div>
+            `;
+
+            try {
+                const response = await fetch('/api/scrape-prices', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        brand: brand,
+                        model: model,
+                        category: 'laptop'
+                    })
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.results && data.results.length > 0) {
+                    // Mostrar resultados
+                    resultsDiv.innerHTML = `
+                        <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 10px;">
+                            Encontrados ${data.results.length} resultados:
+                        </div>
+                        ${data.results.map(result => `
+                            <div style="background: var(--bg-tertiary); padding: 12px; border-radius: 8px; margin-bottom: 8px; border: 1px solid var(--border-color);">
+                                <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 6px;">
+                                    <div style="font-weight: 600; color: var(--text-primary); flex: 1;">${result.store}</div>
+                                    <div style="font-size: 16px; font-weight: 700; color: var(--accent-primary);">S/. ${result.price.toFixed(2)}</div>
+                                </div>
+                                <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 6px;">${result.title}</div>
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <div style="font-size: 11px; color: ${result.availability === 'En stock' ? 'var(--accent-success)' : 'var(--text-secondary)'};">
+                                        ${result.availability}
+                                    </div>
+                                    <a href="${result.url}" target="_blank" style="font-size: 11px; color: var(--accent-primary); text-decoration: none;">
+                                        Ver tienda →
+                                    </a>
+                                </div>
+                            </div>
+                        `).join('')}
+                    `;
+                } else {
+                    resultsDiv.innerHTML = `
+                        <div style="text-align: center; padding: 20px; color: var(--text-secondary);">
+                            <div style="font-size: 24px; margin-bottom: 10px;">😕</div>
+                            <div>No se encontraron resultados</div>
+                            <div style="font-size: 12px; margin-top: 5px;">Intenta con otra marca o modelo</div>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('Error searching prices:', error);
+                resultsDiv.innerHTML = `
+                    <div style="text-align: center; padding: 20px; color: #ef4444;">
+                        <div style="font-size: 24px; margin-bottom: 10px;">❌</div>
+                        <div>Error al buscar precios</div>
+                        <div style="font-size: 12px; margin-top: 5px;">${error.message}</div>
+                    </div>
+                `;
+            }
+        }
+
+        // Reconocimiento de voz
+        let recognition = null;
+        let isRecording = false;
+
+        function toggleVoiceRecording() {
+            const micBtn = document.getElementById('mic-btn');
+            const micIcon = document.getElementById('mic-icon');
+            const textarea = document.getElementById('sim-message');
+
+            if (!isRecording) {
+                // Iniciar grabación
+                if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+                    alert('❌ Tu navegador no soporta reconocimiento de voz. Usa Chrome o Edge.');
+                    return;
+                }
+
+                const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                recognition = new SpeechRecognition();
+                recognition.lang = 'es-PE'; // Español de Perú
+                recognition.continuous = false;
+                recognition.interimResults = false;
+
+                recognition.onstart = () => {
+                    isRecording = true;
+                    micBtn.classList.add('recording');
+                    micIcon.textContent = '⏹️';
+                    console.log('🎤 Grabando...');
+                };
+
+                recognition.onresult = (event) => {
+                    const transcript = event.results[0][0].transcript;
+                    textarea.value = transcript;
+                    console.log('✅ Transcripción:', transcript);
+                };
+
+                recognition.onerror = (event) => {
+                    console.error('❌ Error de reconocimiento:', event.error);
+                    alert(`❌ Error: ${event.error}`);
+                    stopRecording();
+                };
+
+                recognition.onend = () => {
+                    stopRecording();
+                };
+
+                recognition.start();
+            } else {
+                // Detener grabación
+                if (recognition) {
+                    recognition.stop();
+                }
+            }
+        }
+
+        function stopRecording() {
+            isRecording = false;
+            const micBtn = document.getElementById('mic-btn');
+            const micIcon = document.getElementById('mic-icon');
+            micBtn.classList.remove('recording');
+            micIcon.textContent = '🎤';
+        }
+
+        // Fine-Tuning Functions
+        function showFineTuningInfo() {
+            const infoHTML = `
+                <div style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); z-index: 9999; display: flex; align-items: center; justify-content: center; padding: 20px;" onclick="this.remove()">
+                    <div style="background: var(--bg-secondary); border-radius: 12px; max-width: 700px; max-height: 80vh; overflow-y: auto; padding: 30px; border: 1px solid var(--border-color);" onclick="event.stopPropagation()">
+                        <h2 style="margin: 0 0 20px 0; color: var(--text-primary); font-size: 24px;">🎯 ¿Qué es Fine-Tuning?</h2>
+                        
+                        <div style="color: var(--text-secondary); line-height: 1.6; font-size: 14px;">
+                            <p><strong>Fine-Tuning</strong> es entrenar un modelo de IA con conversaciones reales de tu negocio para que responda mejor a tus clientes.</p>
+                            
+                            <h3 style="color: var(--text-primary); margin-top: 20px;">📊 Servicios Disponibles:</h3>
+                            <ul style="margin: 10px 0;">
+                                <li><strong>OpenAI</strong> - GPT-3.5/4 (~$8 por 1M tokens)</li>
+                                <li><strong>Ollama Local</strong> - Llama/Mistral (Gratis, requiere GPU)</li>
+                                <li><strong>Google Vertex AI</strong> - PaLM 2/Gemini</li>
+                                <li><strong>Hugging Face</strong> - Modelos open-source</li>
+                            </ul>
+                            
+                            <h3 style="color: var(--text-primary); margin-top: 20px;">✨ Beneficios:</h3>
+                            <ul style="margin: 10px 0;">
+                                <li>🎨 Tono personalizado de tu marca</li>
+                                <li>💬 Mejor manejo de objeciones</li>
+                                <li>🎯 Upselling inteligente</li>
+                                <li>🇵🇪 Localización (jerga peruana, S/.)</li>
+                                <li>📈 +50% mejora en conversión</li>
+                            </ul>
+                            
+                            <h3 style="color: var(--text-primary); margin-top: 20px;">🔄 Proceso:</h3>
+                            <ol style="margin: 10px 0;">
+                                <li>Exportar conversaciones exitosas (50-500+)</li>
+                                <li>Preparar datos en formato JSONL</li>
+                                <li>Subir a servicio de fine-tuning</li>
+                                <li>Entrenar modelo (10-60 min)</li>
+                                <li>Integrar modelo personalizado</li>
+                            </ol>
+                            
+                            <div style="background: var(--bg-tertiary); padding: 15px; border-radius: 8px; margin-top: 20px; border-left: 3px solid var(--accent-primary);">
+                                <strong>💡 Recomendación:</strong><br>
+                                Usa RAG durante 1-2 meses, recolecta conversaciones reales, y luego haz fine-tuning con datos validados.
+                            </div>
+                            
+                            <div style="margin-top: 20px; text-align: center;">
+                                <a href="file:///C:/Users/jlpy/.gemini/antigravity/brain/bd1c6bbf-3b23-42ec-ba6d-93381f2f6909/guia_finetuning.md" target="_blank" style="color: var(--accent-primary); text-decoration: none; font-weight: 600;">
+                                    📚 Ver Guía Completa →
+                                </a>
+                            </div>
+                        </div>
+                        
+                        <button onclick="this.closest('div[style*=fixed]').remove()" style="margin-top: 20px; width: 100%; padding: 12px; background: var(--accent-primary); color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600;">
+                            Cerrar
+                        </button>
+                    </div>
+                </div>
+            `;
+            document.body.insertAdjacentHTML('beforeend', infoHTML);
+        }
+
+        async function exportTrainingData() {
+            const statusDiv = document.getElementById('finetuning-status');
+            statusDiv.innerHTML = '⏳ Exportando conversaciones...';
+
+            try {
+                const response = await fetch('/api/export-training-data', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ company_id: 2 }) // Demo company
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.training_data) {
+                    // Crear archivo JSONL para descargar
+                    const blob = new Blob([data.training_data], { type: 'application/jsonl' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `training_data_${new Date().toISOString().split('T')[0]}.jsonl`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+
+                    statusDiv.innerHTML = `✅ ${data.count} conversaciones exportadas`;
+                    setTimeout(() => statusDiv.innerHTML = '', 5000);
+                } else {
+                    statusDiv.innerHTML = '❌ No hay suficientes conversaciones (mínimo 10)';
+                }
+            } catch (error) {
+                console.error('Error exporting data:', error);
+                statusDiv.innerHTML = '❌ Error al exportar datos';
+            }
+        }
+
+        function startFineTuning() {
+            alert('🚧 Función en desarrollo\n\nPara implementar fine-tuning real:\n1. Exporta los datos de entrenamiento\n2. Sube a OpenAI/Ollama/HuggingFace\n3. Entrena el modelo\n4. Integra el modelo personalizado');
+        }
+
+        // Cargar datos iniciales
+        loadConversations();
+        loadDocuments();
+        loadSavedPrompt();
+
+        // Actualizar cada 5 segundos
+        setInterval(loadConversations, 5000);
+    </script>
+</body>
+
+</html>
